@@ -450,76 +450,6 @@ class DoubleBottomAnalyzer:
             print(f"    📈 반등률: {result['rebound_pct']*100:.1f}%")
             print(f"    🚀 돌파률: {result['breakout_pct']*100:.1f}%")
     
-    def create_visualization(self, top_n=5):
-        """상위 N개 종목의 쌍바닥 패턴 시각화"""
-        top_results = self.get_top15_results()[:top_n]
-        
-        if not top_results:
-            print("시각화할 결과가 없습니다.")
-            return
-        
-        fig, axes = plt.subplots(len(top_results), 1, figsize=(15, 4*len(top_results)))
-        if len(top_results) == 1:
-            axes = [axes]
-        
-        for i, result in enumerate(top_results):
-            symbol = result['symbol']
-            stock_data = self.df_long[self.df_long['종목'] == symbol].copy()
-            
-            # 최근 120일 데이터만 사용
-            stock_data = stock_data.tail(120).reset_index(drop=True)
-            
-            # 차트 그리기
-            axes[i].plot(stock_data['Date'], stock_data['Close'], 
-                        linewidth=2, color='black', label='종가')
-            
-            # 바닥과 넥라인 표시
-            b1_idx = result['b1_idx']
-            b2_idx = result['b2_idx']
-            peak_idx = result['peak_idx']
-            
-            # 인덱스 조정 (최근 120일 기준)
-            if len(stock_data) < 120:
-                continue
-                
-            # 바닥과 넥라인 위치 계산
-            recent_b1_idx = len(stock_data) - 120 + b1_idx
-            recent_b2_idx = len(stock_data) - 120 + b2_idx
-            recent_peak_idx = len(stock_data) - 120 + peak_idx
-            
-            # 유효한 인덱스인지 확인
-            if (0 <= recent_b1_idx < len(stock_data) and 
-                0 <= recent_b2_idx < len(stock_data) and 
-                0 <= recent_peak_idx < len(stock_data)):
-                
-                axes[i].scatter(stock_data.loc[recent_b1_idx, 'Date'], 
-                              stock_data.loc[recent_b1_idx, 'Close'],
-                              color='red', s=100, marker='v', 
-                              label='첫 번째 바닥', zorder=5)
-                
-                axes[i].scatter(stock_data.loc[recent_b2_idx, 'Date'], 
-                              stock_data.loc[recent_b2_idx, 'Close'],
-                              color='red', s=100, marker='v', 
-                              label='두 번째 바닥', zorder=5)
-                
-                axes[i].scatter(stock_data.loc[recent_peak_idx, 'Date'], 
-                              stock_data.loc[recent_peak_idx, 'Close'],
-                              color='blue', s=100, marker='^', 
-                              label='넥라인', zorder=5)
-            
-            axes[i].set_title(f'{symbol} - 쌍바닥 패턴 (점수: {result["score"]:.1f})', 
-                            fontsize=14, fontweight='bold')
-            axes[i].set_ylabel('주가 (원)', fontsize=12)
-            axes[i].legend()
-            axes[i].grid(True, alpha=0.3)
-            
-            # 날짜 축 포맷팅
-            axes[i].xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-            axes[i].tick_params(axis='x', rotation=45)
-        
-        plt.tight_layout()
-        plt.show()
-    
     def save_valid_results_to_csv(self, filename='valid_double_bottom_results.csv'):
         """유효한 쌍바닥 패턴 결과를 CSV 파일로 저장"""
         valid_results = self.get_valid_double_bottom_results()
@@ -647,10 +577,6 @@ def main():
         
         # 유효한 쌍바닥 패턴만 출력
         analyzer.print_valid_results()
-        
-        # 시각화 (유효한 쌍바닥 중 상위 5개)
-        print("\n📊 유효한 쌍바닥 패턴 상위 5개 종목 시각화 중...")
-        analyzer.create_visualization(top_n=5)
         
         # 유효한 결과만 저장
         analyzer.save_valid_results_to_csv()
