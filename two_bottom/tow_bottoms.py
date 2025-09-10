@@ -44,6 +44,25 @@ class DoubleBottomAnalyzer:
         if self.df.columns[0] != '종목':
             raise ValueError("첫 번째 컬럼이 '종목'이 아닙니다.")
         
+        # 시가총액, 섹터 열이 있으면 제외하고 날짜 열만 선택
+        date_columns = []
+        for col in self.df.columns:
+            if col == '종목' or col == '시가총액' or col == '섹터':
+                continue
+            # 날짜 형식인지 확인 (YYYY-MM-DD)
+            try:
+                pd.to_datetime(col, format='%Y-%m-%d')
+                date_columns.append(col)
+            except:
+                continue
+        
+        if not date_columns:
+            raise ValueError("날짜 형식의 컬럼을 찾을 수 없습니다.")
+        
+        # 종목과 날짜 열만 선택
+        columns_to_use = ['종목'] + date_columns
+        self.df = self.df[columns_to_use]
+        
         # 종목명을 인덱스로 설정
         self.df = self.df.set_index('종목')
         
@@ -64,6 +83,7 @@ class DoubleBottomAnalyzer:
         self.df_long = self.df_long.sort_values(['종목', 'Date']).reset_index(drop=True)
         
         print(f"✅ 데이터 변환 완료: {len(self.df_long)} 행, {self.df_long['종목'].nunique()}개 종목")
+        print(f"📅 날짜 범위: {self.df_long['Date'].min().strftime('%Y-%m-%d')} ~ {self.df_long['Date'].max().strftime('%Y-%m-%d')}")
         
     def find_local_minima_maxima(self, series, window=5):
         """
@@ -554,8 +574,27 @@ def main():
     print("🚀 개선된 상위 15개 쌍바닥 분석 시작 (이전 최저 바닥 고려)")
     print("="*60)
     
+    # 사용자로부터 CSV 파일명 입력 받기
+    print("\n📁 분석할 CSV 파일을 선택하세요:")
+    print("   기본값: 코스피6개월종가_with_sector_20250910_015609.csv")
+    print("   엔터를 누르면 기본 파일을 사용합니다.")
+    
+    csv_filename = input("CSV 파일명을 입력하세요: ").strip()
+    
+    # 입력이 없으면 기본 파일명 사용
+    if not csv_filename:
+        csv_filename = 'two_bottom/코스피6개월종가_with_sector_20250910_015609.csv'
+        print(f"✅ 기본 파일 사용: {csv_filename}")
+    else:
+        # 입력된 파일명에 경로가 없으면 two_bottom 폴더 경로 추가
+        if '/' not in csv_filename and '\\' not in csv_filename:
+            csv_filename = f'two_bottom/{csv_filename}'
+        print(f"✅ 선택된 파일: {csv_filename}")
+    
+    print(f"\n📊 {csv_filename} 파일로 분석을 시작합니다...")
+    
     # 분석기 초기화
-    analyzer = DoubleBottomAnalyzer('코스피6개월종가_20250908_035947.csv')
+    analyzer = DoubleBottomAnalyzer(csv_filename)
     
     try:
         # 데이터 로드 및 변환
