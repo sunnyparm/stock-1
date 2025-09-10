@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from datetime import datetime
+import os
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -114,7 +115,7 @@ class DoubleBottomAnalyzer:
         
         return prev_lowest, prev_lowest_idx
     
-    def check_sideways_after_bottom(self, data, bottom_idx, days=3, tolerance_pct=0.03):
+    def check_sideways_after_bottom(self, data, bottom_idx, days=3, tolerance_pct=0.02):
         """
         바닥 이후 N일간 횡보 여부 확인
         
@@ -171,10 +172,8 @@ class DoubleBottomAnalyzer:
         second_window = data.iloc[max(0, second_bottom_idx-10):second_bottom_idx+10]
         second_local_min = second_window['Close'].min()
         
-        # 3. 최근 최저가 이후 3일간 횡보 확인 (±3% 허용)
-        recent_bottom_sideways = self.check_sideways_after_bottom(
-            data, second_bottom_idx, days=3, tolerance_pct=0.03
-        )
+        # 3. 최근 최저가 이후 3일간 횡보 확인
+        recent_bottom_sideways = self.check_sideways_after_bottom(data, second_bottom_idx, days=3, tolerance_pct=0.02)
         
         validation_result = {
             'prev_lowest': prev_lowest,
@@ -225,60 +224,6 @@ class DoubleBottomAnalyzer:
         validation_result['validation_score'] = max(0, score)
         
         return validation_result
-
-    def get_sideways_after_second_bottom_results(self, days=3, tolerance_pct=0.03):
-        """두 번째 바닥 이후 N일간 ±tolerance_pct 횡보하는 종목만 반환"""
-        filtered = []
-        for result in self.double_bottom_results:
-            validation = result.get('validation', {})
-            # validation은 위 validate_double_bottom_pattern에서 days=3, tol=0.03로 계산됨
-            if validation.get('recent_bottom_sideways', False):
-                filtered.append(result)
-        return filtered
-
-    def print_sideways_results(self):
-        """두 번째 바닥 이후 3일간 ±3% 횡보 종목 출력"""
-        results = self.get_sideways_after_second_bottom_results()
-        print("\n" + "="*80)
-        print(f"📊 두 번째 바닥 이후 3일간 ±3% 횡보 종목 ({len(results)}개)")
-        print("="*80)
-        for i, result in enumerate(results, 1):
-            print(f"\n{i:2d}. {result['symbol']}")
-            print(f"    📊 종합 점수: {result['score']:.1f}/100")
-            print(f"    💰 첫 번째 바닥: {result['b1_price']:,.0f}원")
-            print(f"    💰 두 번째 바닥: {result['b2_price']:,.0f}원")
-            print(f"    📈 넥라인: {result['peak_price']:,.0f}원")
-            print(f"    💎 현재가: {result['current_price']:,.0f}원")
-            print(f"    📉 바닥 차이: {result['price_diff_pct']*100:.1f}%")
-            print(f"    📈 반등률: {result['rebound_pct']*100:.1f}%")
-            print(f"    🚀 돌파률: {result['breakout_pct']*100:.1f}%")
-            # 횡보 조건 충족은 제목에서 이미 보장
-
-    def save_sideways_results_to_csv(self, filename='sideways_3days_3pct_results.csv'):
-        """두 번째 바닥 이후 3일간 ±3% 횡보 종목을 CSV로 저장"""
-        results = self.get_sideways_after_second_bottom_results()
-        if not results:
-            print("저장할 횡보(±3%, 3일) 결과가 없습니다.")
-            return
-        rows = []
-        for r in results:
-            v = r.get('validation', {})
-            rows.append({
-                '종목': r['symbol'],
-                '종합점수': round(r['score'], 1),
-                '첫번째바닥': r['b1_price'],
-                '두번째바닥': r['b2_price'],
-                '넥라인': r['peak_price'],
-                '현재가': r['current_price'],
-                '바닥차이(%)': round(r['price_diff_pct'] * 100, 2),
-                '반등률(%)': round(r['rebound_pct'] * 100, 2),
-                '돌파률(%)': round(r['breakout_pct'] * 100, 2),
-                '최근바닥횡보(±3%/3일)': '✅ 횡보',
-                '검증점수': round(v.get('validation_score', 0), 1),
-                '이전최저바닥': v.get('prev_lowest', 'N/A'),
-            })
-        pd.DataFrame(rows).to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ 두 번째 바닥 이후 3일간 ±3% 횡보 종목이 '{filename}'로 저장되었습니다.")
     
     def calculate_double_bottom_score(self, stock_data, 
                                     bottom_tolerance_pct=0.10,  # 더 엄격하게 (20% -> 10%)
@@ -583,6 +528,23 @@ class DoubleBottomAnalyzer:
             print("저장할 유효한 결과가 없습니다.")
             return
         
+        # two_bottom 폴더 경로 설정
+        output_dir = 'two_bottom'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # 파일명에 타임스탬프 추가
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if filename == 'valid_double_bottom_results.csv':
+            filename = f'valid_double_bottom_results_{timestamp}.csv'
+        else:
+            # 파일명에 확장자가 있는 경우 타임스탬프를 확장자 앞에 추가
+            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, 'csv')
+            filename = f'{name}_{timestamp}.{ext}'
+        
+        # 전체 파일 경로 생성
+        filepath = os.path.join(output_dir, filename)
+        
         # 결과 데이터프레임 생성
         results_data = []
         for result in valid_results:
@@ -607,8 +569,8 @@ class DoubleBottomAnalyzer:
             })
         
         df_results = pd.DataFrame(results_data)
-        df_results.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ 유효한 쌍바닥 패턴 결과가 '{filename}' 파일로 저장되었습니다.")
+        df_results.to_csv(filepath, index=False, encoding='utf-8-sig')
+        print(f"✅ 유효한 쌍바닥 패턴 결과가 '{filepath}' 파일로 저장되었습니다.")
         print(f"📊 총 {len(valid_results)}개 종목이 유효한 쌍바닥 패턴으로 확인되었습니다.")
     
     def save_results_to_csv(self, filename='improved_top15_double_bottom_results.csv'):
@@ -618,6 +580,23 @@ class DoubleBottomAnalyzer:
         if not top15:
             print("저장할 결과가 없습니다.")
             return
+        
+        # two_bottom 폴더 경로 설정
+        output_dir = 'two_bottom'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # 파일명에 타임스탬프 추가
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if filename == 'improved_top15_double_bottom_results.csv':
+            filename = f'improved_top15_double_bottom_results_{timestamp}.csv'
+        else:
+            # 파일명에 확장자가 있는 경우 타임스탬프를 확장자 앞에 추가
+            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, 'csv')
+            filename = f'{name}_{timestamp}.{ext}'
+        
+        # 전체 파일 경로 생성
+        filepath = os.path.join(output_dir, filename)
         
         # 결과 데이터프레임 생성
         results_data = []
@@ -642,8 +621,8 @@ class DoubleBottomAnalyzer:
             })
         
         df_results = pd.DataFrame(results_data)
-        df_results.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"✅ 개선된 결과가 '{filename}' 파일로 저장되었습니다.")
+        df_results.to_csv(filepath, index=False, encoding='utf-8-sig')
+        print(f"✅ 개선된 결과가 '{filepath}' 파일로 저장되었습니다.")
 
 def main():
     """메인 실행 함수"""
@@ -662,17 +641,12 @@ def main():
         print("   • 더 엄격한 조건 적용 (10% 이내, 5% 반등, 2% 돌파)")
         print("   • 이전 최저 바닥 고려")
         print("   • 상대적 바닥 검증")
-        print("   • 최근 바닥 이후 3일간 ±3% 횡보 확인")
+        print("   • 최근 바닥 이후 3일간 횡보 확인")
         print("   • 패턴 유효성 검증")
         analyzer.analyze_all_stocks()
         
         # 유효한 쌍바닥 패턴만 출력
         analyzer.print_valid_results()
-
-        # 두 번째 바닥 이후 3일간 ±3% 횡보 종목 출력 및 저장
-        print("\n📊 두 번째 바닥 이후 3일간 ±3% 횡보 종목 리스트")
-        analyzer.print_sideways_results()
-        analyzer.save_sideways_results_to_csv()
         
         # 시각화 (유효한 쌍바닥 중 상위 5개)
         print("\n📊 유효한 쌍바닥 패턴 상위 5개 종목 시각화 중...")
