@@ -12,6 +12,8 @@ import matplotlib.dates as mdates
 from datetime import datetime
 import os
 import warnings
+import tkinter as tk
+from tkinter import filedialog
 warnings.filterwarnings('ignore')
 
 # 한글 폰트 설정
@@ -569,27 +571,43 @@ class DoubleBottomAnalyzer:
         df_results.to_csv(filepath, index=False, encoding='utf-8-sig')
         print(f"✅ 개선된 결과가 '{filepath}' 파일로 저장되었습니다.")
 
+def select_csv_file():
+    """CSV 파일 선택 대화상자"""
+    root = tk.Tk()
+    root.withdraw()  # 메인 윈도우 숨기기
+    
+    file_path = filedialog.askopenfilename(
+        title="분석할 CSV 파일을 선택하세요",
+        filetypes=[
+            ("CSV files", "*.csv"),
+            ("All files", "*.*")
+        ],
+        initialdir="two_bottom"  # two_bottom 폴더에서 시작
+    )
+    
+    root.destroy()
+    return file_path
+
 def main():
     """메인 실행 함수"""
     print("🚀 개선된 상위 15개 쌍바닥 분석 시작 (이전 최저 바닥 고려)")
     print("="*60)
     
-    # 사용자로부터 CSV 파일명 입력 받기
-    print("\n📁 분석할 CSV 파일을 선택하세요:")
-    print("   기본값: 코스피6개월종가_with_sector_20250910_015609.csv")
-    print("   엔터를 누르면 기본 파일을 사용합니다.")
+    # 파일 업로드
+    print("\n📂 분석할 CSV 파일을 선택하세요...")
+    csv_filename = select_csv_file()
     
-    csv_filename = input("CSV 파일명을 입력하세요: ").strip()
-    
-    # 입력이 없으면 기본 파일명 사용
     if not csv_filename:
-        csv_filename = 'two_bottom/코스피6개월종가_with_sector_20250910_015609.csv'
-        print(f"✅ 기본 파일 사용: {csv_filename}")
-    else:
-        # 입력된 파일명에 경로가 없으면 two_bottom 폴더 경로 추가
-        if '/' not in csv_filename and '\\' not in csv_filename:
-            csv_filename = f'two_bottom/{csv_filename}'
-        print(f"✅ 선택된 파일: {csv_filename}")
+        print("❌ 파일이 선택되지 않았습니다. 프로그램을 종료합니다.")
+        return
+    
+    print(f"✅ 선택된 파일: {csv_filename}")
+    
+    # 파일 존재 여부 확인
+    if not os.path.exists(csv_filename):
+        print(f"❌ 파일을 찾을 수 없습니다: {csv_filename}")
+        print("프로그램을 종료합니다.")
+        return
     
     print(f"\n📊 {csv_filename} 파일로 분석을 시작합니다...")
     
