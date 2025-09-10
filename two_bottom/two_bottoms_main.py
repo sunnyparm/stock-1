@@ -34,6 +34,7 @@ class DoubleBottomAnalyzer:
         self.df = None
         self.df_long = None
         self.double_bottom_results = []
+        self.stock_info = {}  # 종목별 시가총액, 섹터 정보 저장
         
     def load_and_transform_data(self):
         """데이터 로드 및 변환 (가로 -> 세로 형태)"""
@@ -45,6 +46,18 @@ class DoubleBottomAnalyzer:
         # 첫 번째 컬럼이 '종목'인지 확인
         if self.df.columns[0] != '종목':
             raise ValueError("첫 번째 컬럼이 '종목'이 아닙니다.")
+        
+        # 시가총액, 섹터 정보 추출
+        if '시가총액' in self.df.columns and '섹터' in self.df.columns:
+            for _, row in self.df.iterrows():
+                symbol = row['종목']
+                market_cap = row.get('시가총액', 'N/A')
+                sector = row.get('섹터', 'N/A')
+                self.stock_info[symbol] = {
+                    '시가총액': market_cap,
+                    '섹터': sector
+                }
+            print(f"📊 종목 정보 추출 완료: {len(self.stock_info)}개 종목")
         
         # 시가총액, 섹터 열이 있으면 제외하고 날짜 열만 선택
         date_columns = []
@@ -500,15 +513,20 @@ class DoubleBottomAnalyzer:
         # 결과 데이터프레임 생성
         results_data = []
         for result in valid_results:
+            symbol = result['symbol']
+            stock_info = self.stock_info.get(symbol, {})
+            
             results_data.append({
-                '종목': result['symbol'],
+                '종목': symbol,
                 '첫번째바닥': result['b1_price'],
                 '두번째바닥': result['b2_price'],
                 '넥라인': result['peak_price'],
                 '현재가': result['current_price'],
                 '바닥차이(%)': round(result['price_diff_pct'] * 100, 2),
                 '반등률(%)': round(result['rebound_pct'] * 100, 2),
-                '돌파률(%)': round(result['breakout_pct'] * 100, 2)
+                '돌파률(%)': round(result['breakout_pct'] * 100, 2),
+                '시가총액': stock_info.get('시가총액', 'N/A'),
+                '섹터': stock_info.get('섹터', 'N/A')
             })
         
         df_results = pd.DataFrame(results_data)
