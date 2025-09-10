@@ -478,27 +478,22 @@ class DoubleBottomAnalyzer:
         # 결과 데이터프레임 생성
         results_data = []
         for result in valid_results:
-            validation = result.get('validation', {})
             results_data.append({
                 '종목': result['symbol'],
-                '종합점수': round(result['score'], 1),
                 '첫번째바닥': result['b1_price'],
                 '두번째바닥': result['b2_price'],
                 '넥라인': result['peak_price'],
                 '현재가': result['current_price'],
                 '바닥차이(%)': round(result['price_diff_pct'] * 100, 2),
                 '반등률(%)': round(result['rebound_pct'] * 100, 2),
-                '돌파률(%)': round(result['breakout_pct'] * 100, 2),
-                '유효성검증': '✅ 유효',
-                '검증점수': round(validation.get('validation_score', 0), 1),
-                '이전최저바닥': validation.get('prev_lowest', 'N/A'),
-                '바닥개선률(%)': round(((result['b1_price'] - validation.get('prev_lowest', result['b1_price'])) / validation.get('prev_lowest', result['b1_price']) * 100), 2) if validation.get('prev_lowest') else 'N/A',
-                '최근바닥횡보': '✅ 횡보' if validation.get('recent_bottom_sideways', False) else '❌ 횡보하지 않음',
-                '문제점수': len(validation.get('issues', [])),
-                '문제점': '; '.join(validation.get('issues', [])) if validation.get('issues') else '없음'
+                '돌파률(%)': round(result['breakout_pct'] * 100, 2)
             })
         
         df_results = pd.DataFrame(results_data)
+        
+        # 돌파률 기준으로 정렬 (마이너스 값이 위에 오도록)
+        df_results = df_results.sort_values('돌파률(%)', ascending=True)
+        
         df_results.to_csv(filepath, index=False, encoding='utf-8-sig')
         print(f"✅ 유효한 쌍바닥 패턴 결과가 '{filepath}' 파일로 저장되었습니다.")
         print(f"📊 총 {len(valid_results)}개 종목이 유효한 쌍바닥 패턴으로 확인되었습니다.")
