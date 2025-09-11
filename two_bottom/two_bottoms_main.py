@@ -14,6 +14,10 @@ import os
 import warnings
 import tkinter as tk
 from tkinter import filedialog
+import tempfile
+from openpyxl import Workbook
+from openpyxl.drawing.image import Image
+from openpyxl.styles import Alignment, Font
 warnings.filterwarnings('ignore')
 
 # 한글 폰트 설정
@@ -538,6 +542,189 @@ class DoubleBottomAnalyzer:
         print(f"✅ 유효한 쌍바닥 패턴 결과가 '{filepath}' 파일로 저장되었습니다.")
         print(f"📊 총 {len(valid_results)}개 종목이 유효한 쌍바닥 패턴으로 확인되었습니다.")
     
+    def create_sparkline_image(self, data, width=200, height=50, color='#2E86AB'):
+        """스파크라인 이미지 생성"""
+        data = pd.to_numeric(data, errors='coerce').dropna()
+        
+        if len(data) < 2:
+            return None
+        
+        # DPI 설정
+        dpi = 100
+        fig_width = width / dpi
+        fig_height = height / dpi
+        
+        # 그래프 생성
+        fig, ax = plt.subplots(figsize=(fig_width, fig_height), dpi=dpi)
+        
+        # 메인 라인 그리기
+        ax.plot(data.values, color=color, linewidth=2, alpha=0.8)
+        
+        # 최고점과 최저점 표시
+        max_idx = data.values.argmax()
+        min_idx = data.values.argmin()
+        ax.scatter([max_idx], [data.values[max_idx]], color='red', s=15, zorder=5)
+        ax.scatter([min_idx], [data.values[min_idx]], color='blue', s=15, zorder=5)
+        
+        # 축 숨기기
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['bottom'].set_visible(False)
+        ax.spines['left'].set_visible(False)
+        
+        # 배경 설정
+        ax.set_facecolor('white')
+        fig.patch.set_facecolor('white')
+        
+        # 여백 제거
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+        
+        # 임시 파일로 저장
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.png')
+        fig.savefig(temp_file.name, dpi=dpi, bbox_inches='tight', 
+                   pad_inches=0, facecolor='white', edgecolor='none')
+        plt.close(fig)
+        
+        return temp_file.name
+    
+    def save_results_to_excel_with_sparklines(self, filename='double_bottom_results_with_sparklines.xlsx'):
+        """스파크라인이 포함된 Excel 파일로 저장"""
+        valid_results = self.get_valid_double_bottom_results()
+        
+        if not valid_results:
+            print("저장할 유효한 결과가 없습니다.")
+            return
+        
+        # two_bottom 폴더 경로 설정
+        output_dir = 'two_bottom'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # 파일명에 타임스탬프 추가
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if filename == 'double_bottom_results_with_sparklines.xlsx':
+            filename = f'double_bottom_results_with_sparklines_{timestamp}.xlsx'
+        else:
+            # 파일명에 확장자가 있는 경우 타임스탬프를 확장자 앞에 추가
+            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, 'xlsx')
+            filename = f'{name}_{timestamp}.{ext}'
+        
+        # 전체 파일 경로 생성
+        filepath = os.path.join(output_dir, filename)
+        
+        # 워크북 생성
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "쌍바닥 패턴 분석 결과"
+        
+        # 헤더 추가
+        headers = ['순위', '종목', '스파크라인', '종합점수', '첫번째바닥', '두번째바닥', 
+                  '넥라인', '현재가', '바닥차이(%)', '반등률(%)', '돌파률(%)', 
+                  '유효성검증', '검증점수', '시가총액', '섹터']
+        
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+        
+        # 컬럼 너비 설정
+        ws.column_dimensions['A'].width = 8   # 순위
+        ws.column_dimensions['B'].width = 15  # 종목명
+        ws.column_dimensions['C'].width = 25  # 스파크라인
+        ws.column_dimensions['D'].width = 12  # 종합점수
+        ws.column_dimensions['E'].width = 15  # 첫번째바닥
+        ws.column_dimensions['F'].width = 15  # 두번째바닥
+        ws.column_dimensions['G'].width = 15  # 넥라인
+        ws.column_dimensions['H'].width = 15  # 현재가
+        ws.column_dimensions['I'].width = 12  # 바닥차이
+        ws.column_dimensions['J'].width = 12  # 반등률
+        ws.column_dimensions['K'].width = 12  # 돌파률
+        ws.column_dimensions['L'].width = 15  # 유효성검증
+        ws.column_dimensions['M'].width = 12  # 검증점수
+        ws.column_dimensions['N'].width = 15  # 시가총액
+        ws.column_dimensions['O'].width = 15  # 섹터
+        
+        # 행 높이 설정 (스파크라인이 잘리지 않도록)
+        ws.row_dimensions[1].height = 30  # 헤더 행 높이
+        for row in range(2, len(valid_results) + 2):  # 데이터 행들
+            ws.row_dimensions[row].height = 60  # 스파크라인을 위한 충분한 높이
+        
+        # 각 종목 데이터 추가
+        print(f"Excel 스파크라인 생성 중... ({len(valid_results)}개 종목)")
+        temp_files = []  # 임시 파일 추적용
+        
+        for row_idx, result in enumerate(valid_results, 2):
+            try:
+                symbol = result['symbol']
+                validation = result.get('validation', {})
+                stock_info = self.stock_info.get(symbol, {})
+                
+                # 순위
+                ws.cell(row=row_idx, column=1, value=row_idx-1)
+                
+                # 종목명
+                ws.cell(row=row_idx, column=2, value=symbol)
+                
+                # 스파크라인 생성
+                stock_data = self.df_long[self.df_long['종목'] == symbol].copy()
+                if len(stock_data) > 1:
+                    # 최근 6개월 데이터 사용
+                    recent_data = stock_data.tail(120)  # 약 6개월
+                    price_data = recent_data['Close']
+                    
+                    temp_img_path = self.create_sparkline_image(price_data, 200, 50)
+                    if temp_img_path:
+                        temp_files.append(temp_img_path)  # 나중에 삭제하기 위해 추적
+                        
+                        # Excel에 이미지 삽입
+                        img = Image(temp_img_path)
+                        img.width = 200
+                        img.height = 50
+                        ws.add_image(img, f'C{row_idx}')
+                
+                # 데이터 추가
+                data_values = [
+                    round(result['score'], 1),  # 종합점수
+                    result['b1_price'],         # 첫번째바닥
+                    result['b2_price'],         # 두번째바닥
+                    result['peak_price'],       # 넥라인
+                    result['current_price'],    # 현재가
+                    round(result['price_diff_pct'] * 100, 2),  # 바닥차이
+                    round(result['rebound_pct'] * 100, 2),     # 반등률
+                    round(result['breakout_pct'] * 100, 2),    # 돌파률
+                    '✅ 유효' if validation.get('is_valid_double_bottom', False) else '❌ 의심',  # 유효성검증
+                    round(validation.get('validation_score', 0), 1),  # 검증점수
+                    stock_info.get('시가총액', 'N/A'),  # 시가총액
+                    stock_info.get('섹터', 'N/A')       # 섹터
+                ]
+                
+                for col_idx, value in enumerate(data_values, 4):
+                    cell = ws.cell(row=row_idx, column=col_idx, value=value)
+                    cell.alignment = Alignment(horizontal='center')
+                
+                if row_idx % 10 == 0:
+                    print(f"진행률: {row_idx-1}/{len(valid_results)} 종목 완료")
+                    
+            except Exception as e:
+                print(f"종목 '{symbol}' 처리 중 오류: {e}")
+                continue
+        
+        # Excel 파일 저장
+        wb.save(filepath)
+        
+        # 임시 파일들 삭제
+        for temp_file in temp_files:
+            try:
+                os.unlink(temp_file)
+            except:
+                pass
+        
+        print(f"✅ 스파크라인이 포함된 Excel 파일이 '{filepath}'에 저장되었습니다.")
+        print(f"📊 총 {len(valid_results)}개 종목의 쌍바닥 패턴 분석 결과가 스파크라인과 함께 저장되었습니다.")
+        return filepath
+
     def save_results_to_csv(self, filename='improved_top15_double_bottom_results.csv'):
         """개선된 결과를 CSV 파일로 저장 (유효성 검증 정보 포함)"""
         top15 = self.get_top15_results()
@@ -648,8 +835,12 @@ def main():
         # 유효한 쌍바닥 패턴만 출력
         analyzer.print_valid_results()
         
-        # 유효한 결과만 저장
+        # 유효한 결과만 CSV로 저장
         analyzer.save_valid_results_to_csv()
+        
+        # 스파크라인이 포함된 Excel 파일 생성
+        print("\n📊 스파크라인이 포함된 Excel 파일 생성 중...")
+        excel_file = analyzer.save_results_to_excel_with_sparklines()
         
         print("\n🎉 유효한 쌍바닥 패턴 분석 완료!")
         print("="*60)
@@ -660,6 +851,8 @@ def main():
         print("   ✅ 최근 바닥 이후 3일간 횡보 패턴 확인")
         print("   ✅ 15개 제한 없이 모든 유효한 쌍바닥 선별")
         print("   ✅ 진짜 쌍바닥 패턴만 추출")
+        print("   📈 스파크라인 차트가 포함된 Excel 파일 생성")
+        print(f"   📁 Excel 파일: {excel_file}")
         
     except Exception as e:
         print(f"❌ 오류 발생: {e}")
