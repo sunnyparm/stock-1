@@ -1,0 +1,76 @@
+---
+globs: *.py
+description: Python 코딩 스타일 및 주식 분석 관련 규칙
+---
+
+# Python 코딩 규칙
+
+## 기본 스타일
+- 한국어 주석과 변수명 사용
+- pandas, numpy, matplotlib 등 데이터 분석 라이브러리 활용
+- tkinter를 통한 파일 선택 UI 제공
+
+## 주식 분석 관련 규칙
+
+### 데이터 처리
+- CSV 파일 읽기 시 `pd.read_csv()` 사용
+- 날짜 컬럼은 `col.startswith("2025-")` 패턴으로 식별
+- 가격 데이터는 `astype(float)`으로 변환
+
+### 백테스팅 코드 구조
+```python
+# 사용자 설정
+NEAR_TOL = 0.03       # 퍼센트 단위 허용 오차
+RANGE_DAYS = 10       # 분석 기간
+SIDEWAYS_TOL = 0.05   # 횡보 기준
+
+# 데이터 전처리
+for idx, row in df.iterrows():
+    prices = row[date_cols].dropna().astype(float).values
+    
+# 결과 저장
+result_df = pd.DataFrame(results)
+result_df.to_csv("결과파일명.csv", index=False)
+```
+
+### 오류 방지
+- `DataFrame.to_csv()` 대신 `result_df.to_csv()` 사용
+- 빈 데이터 체크: `if len(prices) == 0: continue`
+- NaN 값 처리: `.dropna()` 사용
+
+## 파일 명명 규칙
+- 결과 파일: `기능명_타임스탬프.csv` 또는 `.xlsx`
+- 분석 코드: `기능명.py`
+- 설명서: `기능명.md`
+
+### 파일 저장 및 자동 열기 패턴
+```python
+from datetime import datetime
+import os
+import subprocess
+import platform
+
+# 타임스탬프 생성
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f"결과파일명_{timestamp}.csv"
+
+# 파일 저장
+result_df.to_csv(filename, index=False)
+
+# 저장 후 자동으로 열기
+def open_file(filepath):
+    """파일을 기본 프로그램으로 열기"""
+    try:
+        if platform.system() == 'Windows':
+            os.startfile(filepath)
+        elif platform.system() == 'Darwin':  # macOS
+            subprocess.run(['open', filepath])
+        else:  # Linux
+            subprocess.run(['xdg-open', filepath])
+    except Exception as e:
+        print(f"파일 열기 실패: {e}")
+
+# 파일 열기 실행
+open_file(filename)
+print(f"✅ 파일이 저장되고 열렸습니다: {filename}")
+```
