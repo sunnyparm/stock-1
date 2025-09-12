@@ -19,6 +19,15 @@ class ExcelSparklineGenerator:
     def __init__(self, csv_file_path):
         """Excel 스파크라인 생성기 초기화"""
         self.df = pd.read_csv(csv_file_path)
+        
+        # 시가총액과 섹터 열 제외
+        columns_to_exclude = ['시가총액', '섹터']
+        existing_exclude_cols = [col for col in columns_to_exclude if col in self.df.columns]
+        
+        if existing_exclude_cols:
+            print(f"제외할 열: {existing_exclude_cols}")
+            self.df = self.df.drop(columns=existing_exclude_cols)
+        
         self.df.set_index('종목', inplace=True)
         
     def create_sparkline_image(self, data, width=180, height=40, color='#2E86AB'):
@@ -29,6 +38,7 @@ class ExcelSparklineGenerator:
             return None
         
         # DPI 설정
+        
         dpi = 100
         fig_width = width / dpi
         fig_height = height / dpi
@@ -191,15 +201,20 @@ def validate_csv_file(file_path):
         # CSV 파일 읽기 시도
         df = pd.read_csv(file_path)
         
-        # 최소 컬럼 수 확인
-        if len(df.columns) < 3:
-            return False, "CSV 파일에 최소 3개 이상의 컬럼이 필요합니다."
-        
         # '종목' 컬럼 확인
         if '종목' not in df.columns:
             return False, "CSV 파일에 '종목' 컬럼이 필요합니다."
         
-        return True, "파일이 유효합니다."
+        # 시가총액과 섹터 열 제외 후 컬럼 수 확인
+        columns_to_exclude = ['시가총액', '섹터']
+        existing_exclude_cols = [col for col in columns_to_exclude if col in df.columns]
+        df_filtered = df.drop(columns=existing_exclude_cols)
+        
+        # 최소 컬럼 수 확인 (종목 + 최소 2개 이상의 가격 데이터)
+        if len(df_filtered.columns) < 3:
+            return False, "CSV 파일에 종목과 최소 2개 이상의 가격 데이터 컬럼이 필요합니다."
+        
+        return True, f"파일이 유효합니다. (총 {len(df.columns)}개 컬럼, 가격 데이터 {len(df_filtered.columns)-1}개)"
         
     except Exception as e:
         return False, f"파일 읽기 오류: {str(e)}"
