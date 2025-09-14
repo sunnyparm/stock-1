@@ -179,17 +179,6 @@ def select_csv_file():
     root.destroy()
     return file_path
 
-def select_output_directory():
-    """출력 디렉토리 선택 대화상자"""
-    root = tk.Tk()
-    root.withdraw()  # 메인 윈도우 숨기기
-    
-    directory = filedialog.askdirectory(
-        title="Excel 파일을 저장할 폴더를 선택하세요"
-    )
-    
-    root.destroy()
-    return directory
 
 def validate_csv_file(file_path):
     """CSV 파일 유효성 검사"""
@@ -251,40 +240,17 @@ def main():
         print(f"✓ 사용 가능한 종목 수: {len(sparkline_gen.df)}")
         print(f"✓ 데이터 컬럼 수: {len(sparkline_gen.df.columns)}")
         
-        # 4. 출력 디렉토리 선택
-        print("\n4. 출력 폴더를 선택하세요...")
-        output_dir = select_output_directory()
+        # 4. Excel 파일 생성 (전체 종목 처리)
+        max_rows = len(sparkline_gen.df)
+        print(f"\n4. Excel 파일 생성 중... (전체 {max_rows}개 종목)")
         
-        if not output_dir:
-            print("폴더 선택이 취소되었습니다.")
-            return
-        
-        print(f"선택된 폴더: {output_dir}")
-        
-        # 5. 처리할 종목 수 입력
-        print(f"\n5. 처리할 종목 수를 입력하세요 (최대 {len(sparkline_gen.df)}개):")
-        while True:
-            try:
-                max_rows_input = input("종목 수 (Enter: 전체 처리): ").strip()
-                if not max_rows_input:
-                    max_rows = len(sparkline_gen.df)
-                    break
-                max_rows = int(max_rows_input)
-                if 1 <= max_rows <= len(sparkline_gen.df):
-                    break
-                else:
-                    print(f"1부터 {len(sparkline_gen.df)} 사이의 숫자를 입력하세요.")
-            except ValueError:
-                print("올바른 숫자를 입력하세요.")
-        
-        # 6. Excel 파일 생성
-        print(f"\n6. Excel 파일 생성 중... ({max_rows}개 종목)")
-        
-        # 출력 파일명 생성
+        # 출력 파일명 생성 (CSV 파일과 같은 폴더에 저장)
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output_filename = f"스파크라인_{os.path.splitext(os.path.basename(csv_file))[0]}_{timestamp}.xlsx"
-        output_path = os.path.join(output_dir, output_filename)
+        output_path = os.path.join(os.path.dirname(csv_file), output_filename)
+        
+        print(f"저장 위치: {output_path}")
         
         excel_output = sparkline_gen.create_excel_with_sparklines(
             output_file=output_path, 
@@ -293,16 +259,16 @@ def main():
         
         print(f"\n✓ 생성 완료!")
         print(f"✓ Excel 파일: {output_filename}")
-        print(f"✓ 저장 위치: {output_dir}")
+        print(f"✓ 저장 위치: {os.path.dirname(csv_file)}")
         print(f"✓ Excel 파일을 열어보시면 B열에 실제 스파크라인이 표시됩니다!")
         
-        # 7. 파일 열기 옵션
-        open_file = input("\nExcel 파일을 지금 열까요? (y/n): ").strip().lower()
-        if open_file in ['y', 'yes', '예']:
-            try:
-                os.startfile(excel_output)  # Windows
-            except:
-                print("파일을 자동으로 열 수 없습니다. 수동으로 열어주세요.")
+        # 5. 파일 자동 열기
+        print(f"\n5. Excel 파일을 자동으로 열기...")
+        try:
+            os.startfile(excel_output)  # Windows
+            print("✓ Excel 파일이 열렸습니다!")
+        except:
+            print("파일을 자동으로 열 수 없습니다. 수동으로 열어주세요.")
         
     except Exception as e:
         print(f"\n오류가 발생했습니다: {e}")
